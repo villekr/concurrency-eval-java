@@ -38,7 +38,7 @@ func get(s3_key, find):
 # AWS Lambda handler and packaging
 - Runtime: `java21`
 - Handler: `concurrencyeval.Handler::handleRequest`
-- Deployment artifact: a single shaded JAR (named `function.jar`). Our CI (merge workflow) builds `function.jar`, validates it contains the handler class, and uploads it to S3.
+- Deployment artifact: a single shaded JAR (named `function.jar`). Our CI (merge workflow) builds `function.jar` and uploads it to S3.
 
 ## Troubleshooting ClassNotFoundException
 If you see `Class not found: concurrencyeval.Handler`:

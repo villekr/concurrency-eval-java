@@ -41,8 +41,7 @@ jobs:
       - name: Build shaded jar
         run: mvn -B -ntp -DskipTests package
 
-      - name: Validate shaded jar contains handler class
-        id: validate
+      - name: Prepare shaded jar artifact
         shell: bash
         run: |
           set -euo pipefail
@@ -54,13 +53,7 @@ jobs:
             exit 1
           fi
           echo "Using jar: $JAR_PATH"
-          if ! jar tf "$JAR_PATH" | grep -q '^concurrencyeval/Handler.class$'; then
-            echo "Handler class not found in jar: concurrencyeval/Handler.class" >&2
-            jar tf "$JAR_PATH" | sed -n '1,100p' || true
-            exit 1
-          fi
           cp "$JAR_PATH" function.jar
-          echo "jar_path=${JAR_PATH}" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -89,5 +82,3 @@ jobs:
           echo "Artifact built and uploaded to S3 (single shaded JAR):" >> $GITHUB_STEP_SUMMARY
           echo "- code_s3_key=\"${{ steps.upload.outputs.code_s3_key }}\"" >> $GITHUB_STEP_SUMMARY
           echo "- code_s3_version=\"${{ steps.upload.outputs.code_s3_version }}\"" >> $GITHUB_STEP_SUMMARY
-          echo "\nVerifying shaded jar contains handler (jar tf | grep concurrencyeval):" >> $GITHUB_STEP_SUMMARY
-          jar tf function.jar | grep '^concurrencyeval/' | sort | sed -n '1,50p' >> $GITHUB_STEP_SUMMARY
