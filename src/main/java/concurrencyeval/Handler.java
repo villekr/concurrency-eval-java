@@ -13,6 +13,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -41,16 +42,23 @@ public class Handler implements RequestHandler<Event, Response> {
     }
 
     private String processor(Event event) throws InterruptedException, ExecutionException {
-        ListObjectsV2Request listObjectsReq = ListObjectsV2Request.builder()
-                .bucket(event.s3BucketName())
-                .prefix(event.folder())
-                .build();
+        String bucket = event.s3BucketName();
+        String prefix = event.folder();
+        String find = event.find();
+        boolean hasFind = find != null && !find.isBlank();
 
-        ListObjectsV2Response response = s3.listObjectsV2(listObjectsReq).get();
-        List<CompletableFuture<String>> futures = response.contents().stream()
-                .map(S3Object::key)
-                .map(key -> get(event.s3BucketName(), key, event.find()))
-                .toList();
+        List<CompletableFuture<String>> futures = new ArrayList<>();
+
+        // Single list call is sufficient because bucket has <= 1000 objects
+        ListObjectsV2Request listReq = ListObjectsV2Request.builder()
+                .bucket(bucket)
+                .prefix(prefix)
+                .build();
+        ListObjectsV2Response resp = s3.listObjectsV2(listReq).get();
+
+        for (S3Object obj : resp.contents()) {
+            futures.add(get(bucket, obj.key(), find));
+        }
 
         // Ensure every object's body is fully read
         CompletableFuture<Void> all = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
@@ -58,7 +66,7 @@ public class Handler implements RequestHandler<Event, Response> {
 
         List<String> results = futures.stream().map(CompletableFuture::join).toList();
 
-        if (event.find() != null) {
+        if (hasFind) {
             for (String r : results) {
                 if (r != null) return r; // first matching key
             }
@@ -80,7 +88,7 @@ public class Handler implements RequestHandler<Event, Response> {
         return responseFuture.thenApply(responseBytes -> {
             String body = responseBytes.asUtf8String();
 
-            if (find != null) {
+            if (find != null && !find.isBlank()) {
                 int index = body.indexOf(find);
                 if (index != -1) {
                     return key;

@@ -1,4 +1,4 @@
-name: Merge CI
+name: Merge
 
 on:
   push:
@@ -48,17 +48,36 @@ jobs:
             sudo apt-get install -y zip
           fi
 
-      - name: Create function.zip from shaded jar
+      - name: Validate shaded jar contains handler class
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Prefer the shaded artifact (exclude any original-*.jar)
+          JAR_PATH=$(ls -1 target/*.jar | grep -v '/original-' | head -n1)
+          if [ -z "${JAR_PATH:-}" ]; then
+            echo "No shaded jar found in target/." >&2
+            ls -l target || true
+            exit 1
+          fi
+          echo "Using jar: $JAR_PATH"
+          if ! jar tf "$JAR_PATH" | grep -q '^concurrencyeval/Handler.class$'; then
+            echo "Handler class not found in jar: concurrencyeval/Handler.class" >&2
+            jar tf "$JAR_PATH" | sed -n '1,100p' || true
+            exit 1
+          fi
+          echo "jar_path=${JAR_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Create function.zip from shaded jar (root-level jar)
         id: zip
         shell: bash
         run: |
           set -euo pipefail
-          JAR_PATH=$(ls -1 target/*.jar | head -n1)
-          mkdir -p dist
-          cp "$JAR_PATH" dist/function.jar
-          cd dist
-          zip -q -r ../function.zip ./
-          echo "jar_path=${JAR_PATH}" >> "$GITHUB_OUTPUT"
+          JAR_PATH="${{ steps.validate.outputs.jar_path }}"
+          cp "$JAR_PATH" function.jar
+          # Place the jar at the root of the zip without directory prefixes
+          zip -j -q function.zip function.jar
+          rm -f function.jar
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4

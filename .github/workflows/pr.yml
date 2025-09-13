@@ -1,4 +1,4 @@
-name: PR Build (Java 21)
+name: PR
 
 on:
   pull_request:
