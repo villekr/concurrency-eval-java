@@ -4,6 +4,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
@@ -17,13 +18,35 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 
 public class Handler implements RequestHandler<Event, Response> {
 
-    private S3AsyncClient s3;
+    private final S3AsyncClient s3;
+    private final int maxInflight;
 
     public Handler() {
-        this.s3 = S3AsyncClient.create();
+        int httpMaxConcurrency = getIntEnv("S3_MAX_CONCURRENCY", 64);
+        int acquireTimeoutMs = getIntEnv("S3_ACQUIRE_TIMEOUT_MS", 20000);
+        this.maxInflight = getIntEnv("MAX_IN_FLIGHT_REQUESTS", httpMaxConcurrency);
+
+        var httpClient = NettyNioAsyncHttpClient.builder()
+                .maxConcurrency(httpMaxConcurrency)
+                .connectionAcquisitionTimeout(Duration.ofMillis(acquireTimeoutMs))
+                .build();
+        this.s3 = S3AsyncClient.builder()
+                .httpClient(httpClient)
+                .build();
+    }
+
+    private static int getIntEnv(String name, int def) {
+        try {
+            String v = System.getenv(name);
+            if (v == null || v.isBlank()) return def;
+            return Integer.parseInt(v.trim());
+        } catch (Exception e) {
+            return def;
+        }
     }
 
     @Override
@@ -64,8 +87,13 @@ public class Handler implements RequestHandler<Event, Response> {
                 .build();
         ListObjectsV2Response resp = s3.listObjectsV2(listReq).get();
 
+        final Semaphore permits = new Semaphore(Math.max(1, this.maxInflight));
+
         for (S3Object obj : resp.contents()) {
-            futures.add(get(bucket, obj.key(), find));
+            permits.acquire();
+            CompletableFuture<String> f = get(bucket, obj.key(), find)
+                    .whenComplete((r, t) -> permits.release());
+            futures.add(f);
         }
 
         // Ensure every object's body is fully read
