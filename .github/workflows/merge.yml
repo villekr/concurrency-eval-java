@@ -6,7 +6,7 @@ on:
 
 jobs:
   package-and-upload:
-    name: Package Java 21 Lambda and upload to S3
+    name: Package Java Lambda and upload to S3 (JAR artifact)
     runs-on: ubuntu-24.04-arm # we don't want to rely directly on 'ubuntu-latest'
     permissions:
       id-token: write
@@ -41,13 +41,6 @@ jobs:
       - name: Build shaded jar
         run: mvn -B -ntp -DskipTests package
 
-      - name: Ensure zip available
-        run: |
-          if ! command -v zip >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y zip
-          fi
-
       - name: Validate shaded jar contains handler class
         id: validate
         shell: bash
@@ -66,18 +59,8 @@ jobs:
             jar tf "$JAR_PATH" | sed -n '1,100p' || true
             exit 1
           fi
-          echo "jar_path=${JAR_PATH}" >> "$GITHUB_OUTPUT"
-
-      - name: Create function.zip from shaded jar (root-level jar)
-        id: zip
-        shell: bash
-        run: |
-          set -euo pipefail
-          JAR_PATH="${{ steps.validate.outputs.jar_path }}"
           cp "$JAR_PATH" function.jar
-          # Place the jar at the root of the zip without directory prefixes
-          zip -j -q function.zip function.jar
-          rm -f function.jar
+          echo "jar_path=${JAR_PATH}" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -87,21 +70,24 @@ jobs:
           role-session-name: github-actions-artifact-upload
 
       - id: upload
-        name: Upload artifact to S3 (capture versioned key)
+        name: Upload JAR artifact to S3 (capture versioned key)
         env:
           BUCKET: ${{ env.ARTIFACT_BUCKET_NAME }}
           PREFIX: ${{ env.ARTIFACT_PREFIX }}
         run: |
           set -euo pipefail
-          ZIP_PATH="function.zip"
-          ZIP_NAME="function.zip"
-          FUNC_KEY="${PREFIX}/${ZIP_NAME}"
-          FUNC_VERSION_ID=$(aws s3api put-object --bucket "$BUCKET" --key "$FUNC_KEY" --body "$ZIP_PATH" --query 'VersionId' --output text)
+          JAR_PATH="function.jar"
+          JAR_NAME="function.jar"
+          FUNC_KEY="${PREFIX}/${JAR_NAME}"
+          FUNC_VERSION_ID=$(aws s3api put-object --bucket "$BUCKET" --key "$FUNC_KEY" --body "$JAR_PATH" --query 'VersionId' --output text)
           echo "code_s3_key=${FUNC_KEY}" >> "$GITHUB_OUTPUT"
           echo "code_s3_version=${FUNC_VERSION_ID}" >> "$GITHUB_OUTPUT"
 
+
       - name: Summary
         run: |
-          echo "Artifact uploaded:" >> $GITHUB_STEP_SUMMARY
+          echo "Artifact built and uploaded to S3 (single shaded JAR):" >> $GITHUB_STEP_SUMMARY
           echo "- code_s3_key=\"${{ steps.upload.outputs.code_s3_key }}\"" >> $GITHUB_STEP_SUMMARY
           echo "- code_s3_version=\"${{ steps.upload.outputs.code_s3_version }}\"" >> $GITHUB_STEP_SUMMARY
+          echo "\nVerifying shaded jar contains handler (jar tf | grep concurrencyeval):" >> $GITHUB_STEP_SUMMARY
+          jar tf function.jar | grep '^concurrencyeval/' | sort | sed -n '1,50p' >> $GITHUB_STEP_SUMMARY
