@@ -34,20 +34,3 @@ func get(s3_key, find):
     body = aws_sdk.get_object(s3_key).body
     return body.find(find) if find else None
 ```
-
-# AWS Lambda handler and packaging
-- Runtime: `java21`
-- Handler: `concurrencyeval.Handler::handleRequest`
-- Deployment artifact: a single shaded JAR (named `function.jar`). Our CI (merge workflow) builds `function.jar` and uploads it to S3.
-
-## Troubleshooting ClassNotFoundException
-If you see `Class not found: concurrencyeval.Handler`:
-1. Inspect the exact artifact you deploy:
-   - Ensure you are deploying a single shaded JAR (not an empty zip).
-   - Inside the jar, the class `concurrencyeval/Handler.class` must exist.
-2. Quick checks on your machine:
-   ```bash
-   jar tf function.jar | grep '^concurrencyeval/Handler.class$' || echo MISSING
-   ```
-3. Make sure the Lambda code configuration points to the same S3 key (and version) that the merge workflow uploaded (shown in the job summary). Re-deploying a different/stale artifact will cause this error.
-4. You can also download the `function.jar` artifact produced by the workflow and upload it directly to the function to validate.
