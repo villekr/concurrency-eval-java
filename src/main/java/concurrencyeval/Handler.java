@@ -42,9 +42,15 @@ public class Handler implements RequestHandler<Event, Response> {
     private static int getIntEnv(String name, int def) {
         try {
             String v = System.getenv(name);
-            if (v == null || v.isBlank()) return def;
-            return Integer.parseInt(v.trim());
-        } catch (Exception e) {
+            if (v == null || v.isBlank()) {
+                return def;
+            }
+            try {
+                return Integer.parseInt(v.trim());
+            } catch (NumberFormatException nfe) {
+                return def;
+            }
+        } catch (SecurityException se) {
             return def;
         }
     }
