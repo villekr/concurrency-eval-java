@@ -47,6 +47,14 @@ public class Handler implements RequestHandler<Event, Response> {
         String find = event.find();
         boolean hasFind = find != null && !find.isBlank();
 
+        if (bucket == null || bucket.isBlank()) {
+            throw new IllegalArgumentException("Event.s3_bucket_name must not be null or blank");
+        }
+        if (prefix == null) {
+            // Allow empty prefix (root), but not null to avoid accidental nulls
+            prefix = "";
+        }
+
         List<CompletableFuture<String>> futures = new ArrayList<>();
 
         // Single list call is sufficient because bucket has <= 1000 objects
