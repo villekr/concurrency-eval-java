@@ -34,7 +34,8 @@ public class Handler implements RequestHandler<Event, Response> {
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException("Error processing event", e);
         }
-        double elapsed = Math.round((Duration.between(start, Instant.now()).toMillis() / 10.0) / 100.0 * 10.0) / 10.0;
+        long millis = Duration.between(start, Instant.now()).toMillis();
+        double elapsed = Math.round((millis / 1000.0) * 10.0) / 10.0; // seconds, one decimal place
 
         return new Response("java", "aws-sdk", result, elapsed);
     }
@@ -51,16 +52,21 @@ public class Handler implements RequestHandler<Event, Response> {
                 .map(key -> get(event.s3BucketName(), key, event.find()))
                 .toList();
 
+        // Ensure every object's body is fully read
+        CompletableFuture<Void> all = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        all.join();
+
+        List<String> results = futures.stream().map(CompletableFuture::join).toList();
+
         if (event.find() != null) {
-            for (CompletableFuture<String> future : futures) {
-                String result = future.get();
-                if (result != null) return result;
+            for (String r : results) {
+                if (r != null) return r; // first matching key
             }
+            return "None"; // no matches found
         }
-        return String.valueOf(futures.size());
+        // No find-string: return the number of S3 objects listed
+        return String.valueOf(results.size());
     }
-
-
 
     private CompletableFuture<String> get(String bucketName, String key, String find) {
         GetObjectRequest getObjectReq = GetObjectRequest.builder()
