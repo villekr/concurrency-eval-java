@@ -1,4 +1,4 @@
-package example;
+package concurrencyeval;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

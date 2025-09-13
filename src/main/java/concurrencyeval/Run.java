@@ -1,4 +1,4 @@
-package example;
+package concurrencyeval;
 
 public class Run {
     public static void main(String[] args) {
