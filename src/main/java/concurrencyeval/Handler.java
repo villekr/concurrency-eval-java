@@ -1,4 +1,4 @@
-package example;
+package concurrencyeval;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutionException;
 
 public class Handler implements RequestHandler<Event, Response> {
 
-    private S3AsyncClient s3;
+    private final S3AsyncClient s3;
 
     public Handler() {
         this.s3 = S3AsyncClient.create();
@@ -34,33 +34,44 @@ public class Handler implements RequestHandler<Event, Response> {
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException("Error processing event", e);
         }
-        double elapsed = Math.round((Duration.between(start, Instant.now()).toMillis() / 10.0) / 100.0 * 10.0) / 10.0;
+        long millis = Duration.between(start, Instant.now()).toMillis();
+        double elapsed = Math.round((millis / 1000.0) * 10.0) / 10.0; // seconds, one decimal place
 
         return new Response("java", "aws-sdk", result, elapsed);
     }
 
     private String processor(Event event) throws InterruptedException, ExecutionException {
-        ListObjectsV2Request listObjectsReq = ListObjectsV2Request.builder()
-                .bucket(event.s3BucketName())
-                .prefix(event.folder())
-                .build();
+        String bucket = event.s3BucketName();
+        String prefix = event.folder();
+        String find = event.find();
+        boolean hasFind = find != null && !find.isBlank();
 
-        ListObjectsV2Response response = s3.listObjectsV2(listObjectsReq).get();
-        List<CompletableFuture<String>> futures = response.contents().stream()
+        // Single list call is sufficient because bucket has <= 1000 objects
+        ListObjectsV2Request listReq = ListObjectsV2Request.builder()
+                .bucket(bucket)
+                .prefix(prefix)
+                .build();
+        ListObjectsV2Response resp = s3.listObjectsV2(listReq).get();
+
+        List<CompletableFuture<String>> futures = resp.contents().stream()
                 .map(S3Object::key)
-                .map(key -> get(event.s3BucketName(), key, event.find()))
+                .map(key -> get(bucket, key, find))
                 .toList();
 
-        if (event.find() != null) {
-            for (CompletableFuture<String> future : futures) {
-                String result = future.get();
-                if (result != null) return result;
+        // Ensure every object's body is fully read
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        List<String> results = futures.stream().map(CompletableFuture::join).toList();
+
+        if (hasFind) {
+            for (String r : results) {
+                if (r != null) return r; // first matching key
             }
+            return "None"; // no matches found
         }
-        return String.valueOf(futures.size());
+        // No find-string: return the number of S3 objects listed
+        return String.valueOf(results.size());
     }
-
-
 
     private CompletableFuture<String> get(String bucketName, String key, String find) {
         GetObjectRequest getObjectReq = GetObjectRequest.builder()
@@ -74,7 +85,7 @@ public class Handler implements RequestHandler<Event, Response> {
         return responseFuture.thenApply(responseBytes -> {
             String body = responseBytes.asUtf8String();
 
-            if (find != null) {
+            if (find != null && !find.isBlank()) {
                 int index = body.indexOf(find);
                 if (index != -1) {
                     return key;
