@@ -137,8 +137,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3</artifactId>
+          <groupId>software.amazon.awssdk</groupId>
+          <artifactId>s3</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>software.amazon.awssdk</groupId>
+          <artifactId>netty-nio-client</artifactId>
         </dependency>
         <dependency>
             <groupId>com.amazonaws</groupId>
