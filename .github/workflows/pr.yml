@@ -37,3 +37,7 @@ jobs:
           # -C: cyclomatic complexity threshold (warn if function > 10)
           # -L: maximum function length (lines) threshold (warn if function > 120)
           lizard -l java -C 10 -L 120 src/main/java/concurrencyeval/Handler.java
+
+      - name: Lizard csv output
+        run: |
+          lizard -l java -C 10 -L 120 src/main/java/concurrencyeval/Handler.java --csv             
