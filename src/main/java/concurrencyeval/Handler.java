@@ -9,7 +9,10 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -156,7 +159,7 @@ public class Handler implements RequestHandler<Event, Response> {
                     System.arraycopy(hay, hay.length - keep, overlap, 0, keep);
                 }
             }
-        } catch (Exception e) {
+        } catch (IOException | S3Exception | SdkClientException e) {
             // On any error, we still want the overall workflow to proceed
             return null;
         }
