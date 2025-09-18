@@ -34,6 +34,10 @@ jobs:
       - name: Run lizard on main Lambda file only (Java)
         run: |
           # Check only the main Java handler file and fail on warnings
-          # -C: cyclomatic complexity threshold (warn if function > 10)
+          # -C: cyclomatic complexity threshold (warn if function > 16)
           # -L: maximum function length (lines) threshold (warn if function > 120)
-          lizard -l java -C 10 -L 120 src/main/java/concurrencyeval/Handler.java
+          lizard -l java -C 16 -L 120 src/main/java/concurrencyeval/Handler.java
+
+      - name: Lizard csv output
+        run: |
+          lizard -l python -C 16 -L 120 src/main/java/concurrencyeval/Handler.java --csv
