@@ -72,6 +72,24 @@
                 <version>3.6.2</version>
                 <configuration>
                     <createDependencyReducedPom>false</createDependencyReducedPom>
+                    <!-- Strip build-time metadata from the shaded jar. Embedded
+                         dependency POMs and the aggregated DEPENDENCIES file are
+                         not needed at runtime and cause SBOM scanners (Amazon
+                         Inspector) to report build-only transitive artifacts such
+                         as commons-lang3 (CVE-2025-48924) whose classes are not
+                         actually shipped. -->
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>META-INF/maven/**</exclude>
+                                <exclude>META-INF/DEPENDENCIES</exclude>
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
                 </configuration>
                 <executions>
                     <execution>
