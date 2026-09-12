@@ -62,9 +62,11 @@ public class Handler implements RequestHandler<Event, Response> {
                 .build();
         ListObjectsV2Response resp = s3.listObjectsV2(listReq);
 
-        // Bounded concurrency to reduce memory pressure on low-memory Lambdas
-        int cpu = Math.max(1, Runtime.getRuntime().availableProcessors());
-        int maxConcurrent = Math.min(32, cpu * 8); // reasonable upper bound
+        // Bounded concurrency scaled to the Lambda's configured memory, using the
+        // same formula across all language implementations: cap = max(8, min(64, memory/32)).
+        int memory = Integer.parseInt(
+                System.getenv().getOrDefault("AWS_LAMBDA_FUNCTION_MEMORY_SIZE", "1024"));
+        int maxConcurrent = Math.max(8, Math.min(64, memory / 32));
         Semaphore semaphore = new Semaphore(maxConcurrent);
         ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
         try {
