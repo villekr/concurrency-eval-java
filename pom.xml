@@ -86,21 +86,21 @@
     </build>
     <dependencyManagement>
         <dependencies>
-            <!-- Pin Netty to a patched version to remediate netty-codec-http CVEs
-                 (CVE-2026-42581, CVE-2026-42584). Declared before the AWS SDK BOM
-                 so it wins for netty-* artifacts pulled transitively via
-                 netty-nio-client. -->
+            <!-- Pin Netty to a patched version to remediate netty-codec-http
+                 and netty-handler CVEs (CVE-2026-42581, CVE-2026-42584,
+                 CVE-2026-75595). Declared before the AWS SDK BOM so it wins for
+                 netty-* artifacts pulled transitively via netty-nio-client. -->
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty-bom</artifactId>
-                <version>4.1.137.Final</version>
+                <version>4.2.18.Final</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>bom</artifactId>
-                <version>2.54.13</version>
+                <version>2.54.17</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
